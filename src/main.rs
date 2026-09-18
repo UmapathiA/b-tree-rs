@@ -2,24 +2,66 @@ const MAX_NODE_SIZE: usize = 4;
 
 fn main() {
     let mut root = Node::new();
+    let mut generated_ids: Vec<u32> = Vec::new();
 
-    for _ in 1..1500 {
-        let r = Element {
-            id: random(),
+    for _ in 1..1_50_00_00 {
+        let r = random();
+        generated_ids.push(r);
+        let r_element = Element {
+            id: r,
             name: Name().fake(),
         };
-        (root, _) = insert(root, r);
+        (root, _) = insert(root, r_element);
     }
 
     let json_string = serde_json::to_string_pretty(&root).unwrap();
 
     fs::write("out.json", json_string).unwrap();
+
+    generated_ids.shuffle(&mut rand::rng());
+
+    println!("RANDOM");
+
+    let number_of_searches = 1_00_00_00;
+
+    let mut sorted_array = generated_ids.clone();
+
+    sorted_array.sort();
+
+    let now = Instant::now();
+    for _ in 1..number_of_searches {
+        let pick_random_generated_id = generated_ids.pop().unwrap();
+
+        // println!("Searching for {}....", pick_random_generated_id);
+        find(&root, pick_random_generated_id);
+    }
+
+    println!(
+        "{} records retrieved in {} ms",
+        number_of_searches,
+        now.elapsed().as_millis()
+    );
+
+    println!("SEQUENTIAL");
+    let now = Instant::now();
+    for _ in 1..number_of_searches {
+        let pick_random_generated_id = sorted_array.pop().unwrap();
+
+        // println!("Searching for {}....", pick_random_generated_id);
+        find(&root, pick_random_generated_id);
+    }
+
+    println!(
+        "{} records retrieved in {} ms",
+        number_of_searches,
+        now.elapsed().as_millis()
+    );
 }
 
-use std::fs;
+use std::{fs, time::Instant};
 
 use fake::{Fake, faker::name::en::Name};
-use rand::random;
+use rand::{random, seq::SliceRandom};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -39,6 +81,19 @@ impl Node {
         Node {
             keys: Vec::new(),
             children: Vec::new(),
+        }
+    }
+}
+
+fn find(root: &Node, id: u32) {
+    if let Some(n) = root.keys.iter().find(|k| k.id == id) {
+        // println!("Results: ");
+        // println!("{}: {}", id, n.name)
+    } else {
+        if !root.children.is_empty() {
+            if let Some(n) = root.children.get(root.index(id)) {
+                find(n, id);
+            }
         }
     }
 }
