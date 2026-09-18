@@ -1,4 +1,4 @@
-const MAX_NODE_SIZE: usize = 4;
+const MAX_NODE_SIZE: usize = 12;
 
 fn main() {
     let mut root = Node::new();
@@ -142,7 +142,7 @@ fn split_node(mut root: Node) -> Node {
     let mut left_node = Node::new();
     let mut right_node = Node::new();
 
-    let right_keys = root.keys.split_off(3);
+    let right_keys = root.keys.split_off(MAX_NODE_SIZE / 2 + 1);
     let parent = root.keys.pop().unwrap();
     let left_keys = root.keys;
 
@@ -151,7 +151,7 @@ fn split_node(mut root: Node) -> Node {
     right_node.keys = right_keys;
 
     if !root.children.is_empty() {
-        right_node.children = root.children.split_off(3);
+        right_node.children = root.children.split_off(MAX_NODE_SIZE / 2 + 1);
         left_node.children = root.children;
     }
 
