@@ -1,12 +1,13 @@
-mod unit_tests;
-
 const MAX_NODE_SIZE: usize = 4;
 
 fn main() {
     let mut root = Node::new();
 
-    for _ in 1..1500000 {
-        let r = random();
+    for _ in 1..1500 {
+        let r = Element {
+            id: random(),
+            name: Name().fake(),
+        };
         (root, _) = insert(root, r);
     }
 
@@ -15,19 +16,22 @@ fn main() {
     fs::write("out.json", json_string).unwrap();
 }
 
-fn add(a: u32, b: u32) -> u32 {
-    a + b
-}
-
 use std::fs;
 
+use fake::{Fake, faker::name::en::Name};
 use rand::random;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Node {
-    keys: Vec<u32>,
+    keys: Vec<Element>,
     children: Vec<Node>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Element {
+    id: u32,
+    name: String,
 }
 
 impl Node {
@@ -39,8 +43,8 @@ impl Node {
     }
 }
 
-fn insert(mut root: Node, v: u32) -> (Node, bool) {
-    let i = root.index(v);
+fn insert(mut root: Node, v: Element) -> (Node, bool) {
+    let i = root.index(v.id);
     let mut split_again = false;
     if root.children.is_empty() {
         //When child overflows, split. We reached the tail of the
@@ -107,7 +111,7 @@ impl Node {
         let mut ir = self.keys.iter();
 
         while let Some(x) = ir.next()
-            && x < &id
+            && x.id < id
         {
             i += 1;
         }
