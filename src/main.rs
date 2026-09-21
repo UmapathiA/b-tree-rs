@@ -5,7 +5,6 @@ fn main() {
     let mut root = Node::new();
     let mut generated_ids: Vec<u32> = Vec::new();
 
-    // let mut con = TcpStream::connect("127.0.0.1:2345").unwrap();
     let mut logs: Vec<String> = Vec::new();
 
     for _ in 1..MAX_DATA_INPUT {
