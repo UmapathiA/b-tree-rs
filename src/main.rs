@@ -1,10 +1,15 @@
-const MAX_NODE_SIZE: usize = 12;
-
+const MAX_NODE_SIZE: usize = 24;
+const MAX_DATA_INPUT: u32 = 100_00;
+const NO_OF_SEARCHES: u32 = MAX_DATA_INPUT * 75 / 100;
 fn main() {
     let mut root = Node::new();
     let mut generated_ids: Vec<u32> = Vec::new();
 
-    for _ in 1..1_50_00_00 {
+    let mut con = TcpStream::connect("127.0.0.1:2345").unwrap();
+    let mut logs: Vec<String> = Vec::new();
+
+    for _ in 1..MAX_DATA_INPUT {
+        let now = Instant::now();
         let r = random();
         generated_ids.push(r);
         let r_element = Element {
@@ -12,7 +17,11 @@ fn main() {
             name: Name().fake(),
         };
         (root, _) = insert(root, r_element);
+        con.write(format!("{},{}", r, now.elapsed().as_nanos()).as_bytes())
+            .unwrap();
     }
+
+    fs::write("logs.csv", logs.join("\n")).unwrap();
 
     let json_string = serde_json::to_string_pretty(&root).unwrap();
 
@@ -22,29 +31,36 @@ fn main() {
 
     println!("RANDOM");
 
-    let number_of_searches = 1_00_00_00;
-
     let mut sorted_array = generated_ids.clone();
 
     sorted_array.sort();
 
+    let mut logs: Vec<String> = Vec::new();
+
     let now = Instant::now();
-    for _ in 1..number_of_searches {
+    for _ in 1..NO_OF_SEARCHES {
         let pick_random_generated_id = generated_ids.pop().unwrap();
 
+        let now = Instant::now();
         // println!("Searching for {}....", pick_random_generated_id);
         find(&root, pick_random_generated_id);
+        logs.push(format!(
+            "{},{}",
+            pick_random_generated_id,
+            now.elapsed().as_nanos()
+        ));
     }
 
+    fs::write("search_logs.csv", logs.join("\n")).unwrap();
     println!(
         "{} records retrieved in {} ms",
-        number_of_searches,
+        NO_OF_SEARCHES,
         now.elapsed().as_millis()
     );
 
     println!("SEQUENTIAL");
     let now = Instant::now();
-    for _ in 1..number_of_searches {
+    for _ in 1..NO_OF_SEARCHES {
         let pick_random_generated_id = sorted_array.pop().unwrap();
 
         // println!("Searching for {}....", pick_random_generated_id);
@@ -53,12 +69,12 @@ fn main() {
 
     println!(
         "{} records retrieved in {} ms",
-        number_of_searches,
+        NO_OF_SEARCHES,
         now.elapsed().as_millis()
     );
 }
 
-use std::{fs, time::Instant};
+use std::{fs, io::Write, net::TcpStream, time::Instant};
 
 use fake::{Fake, faker::name::en::Name};
 use rand::{random, seq::SliceRandom};
