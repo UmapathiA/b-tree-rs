@@ -5,7 +5,7 @@ fn main() {
     let mut root = Node::new();
     let mut generated_ids: Vec<u32> = Vec::new();
 
-    let mut con = TcpStream::connect("127.0.0.1:2345").unwrap();
+    // let mut con = TcpStream::connect("127.0.0.1:2345").unwrap();
     let mut logs: Vec<String> = Vec::new();
 
     for _ in 1..MAX_DATA_INPUT {
@@ -17,8 +17,7 @@ fn main() {
             name: Name().fake(),
         };
         (root, _) = insert(root, r_element);
-        con.write(format!("{},{}", r, now.elapsed().as_nanos()).as_bytes())
-            .unwrap();
+        logs.push(format!("{},{}", r, now.elapsed().as_nanos()));
     }
 
     fs::write("logs.csv", logs.join("\n")).unwrap();
@@ -74,7 +73,7 @@ fn main() {
     );
 }
 
-use std::{fs, io::Write, net::TcpStream, time::Instant};
+use std::{fs, time::Instant};
 
 use fake::{Fake, faker::name::en::Name};
 use rand::{random, seq::SliceRandom};
