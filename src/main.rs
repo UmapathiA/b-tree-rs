@@ -1,5 +1,5 @@
 const MAX_NODE_SIZE: usize = 24;
-const MAX_DATA_INPUT: u32 = 100_00;
+const MAX_DATA_INPUT: u32 = 100;
 const NO_OF_SEARCHES: u32 = MAX_DATA_INPUT * 75 / 100;
 fn main() {
     let mut root = Node::new();
@@ -9,7 +9,7 @@ fn main() {
 
     for _ in 1..MAX_DATA_INPUT {
         let now = Instant::now();
-        let r = random();
+        let r = random_range(1..300);
         generated_ids.push(r);
         let r_element = Element {
             id: r,
@@ -18,6 +18,8 @@ fn main() {
         (root, _) = insert(root, r_element);
         logs.push(format!("{},{}", r, now.elapsed().as_nanos()));
     }
+
+    in_order_traversal(&root);
 
     fs::write("logs.csv", logs.join("\n")).unwrap();
 
@@ -75,7 +77,7 @@ fn main() {
 use std::{fs, time::Instant};
 
 use fake::{Fake, faker::name::en::Name};
-use rand::{random, seq::SliceRandom};
+use rand::{random, random_range, seq::SliceRandom};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -112,12 +114,24 @@ fn find(root: &Node, id: u32) {
     }
 }
 
-fn insert(mut root: Node, v: Element) -> (Node, bool) {
+impl PartialEq for Element {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+fn insert(mut root: Node, mut v: Element) -> (Node, bool) {
     let i = root.index(v.id);
     let mut split_again = false;
     if root.children.is_empty() {
         //When child overflows, split. We reached the tail of the
         //recxursion
+        if root.keys.contains(&v) {
+            let _ = root
+                .keys
+                .remove(root.keys.iter().position(|x| x.id == v.id).unwrap());
+            v.name.push_str("(Updated)");
+        }
         root.keys.insert(i, v);
         if root.keys.len() > MAX_NODE_SIZE {
             root = split_node(root);
@@ -172,6 +186,20 @@ fn split_node(mut root: Node) -> Node {
     root.children = vec![left_node, right_node];
 
     root
+}
+
+fn in_order_traversal(root: &Node) {
+    if root.children.is_empty() {
+        root.keys
+            .iter()
+            .for_each(|x| println!("{} - {}", x.id, x.name));
+    } else {
+        root.keys.iter().enumerate().for_each(|(i, v)| {
+            let child_node = root.children.get(i).unwrap();
+            in_order_traversal(child_node);
+            println!("{} - {}", v.id, v.name);
+        });
+    }
 }
 
 impl Node {
