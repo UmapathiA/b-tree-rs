@@ -19,6 +19,14 @@ fn main() {
         logs.push(format!("{},{}", r, now.elapsed().as_nanos()));
     }
 
+    let id_to_be_deleted = generated_ids
+        .get(random_range(0..MAX_DATA_INPUT) as usize)
+        .unwrap()
+        .clone();
+    in_order_traversal(&root);
+    delete_node(&mut root, id_to_be_deleted);
+
+    println!("After deleting id : {}", id_to_be_deleted);
     in_order_traversal(&root);
 
     fs::write("logs.csv", logs.join("\n")).unwrap();
@@ -202,6 +210,47 @@ fn in_order_traversal(root: &Node) {
     }
 }
 
+fn delete_node(mut root: &mut Node, id: u32) {
+    if root.keys.iter().find(|v| v.id == id).is_some() {
+        let index = root
+            .keys
+            .iter()
+            .enumerate()
+            .find(|(_, v)| v.id == id)
+            .unwrap()
+            .0;
+
+        let _ = root.keys.remove(index);
+        //delete child node
+
+        if !root.children.is_empty() {
+            let successor = get_successor(&mut root);
+            root.keys.insert(index, successor);
+        }
+    } else {
+        let index = root
+            .keys
+            .iter()
+            .enumerate()
+            .find(|(_, v)| v.id > id)
+            .unwrap()
+            .0;
+        let mut n = root.children.remove(index);
+        delete_node(&mut n, id);
+        root.children.insert(index, n);
+    }
+}
+
+fn get_successor(root: &mut Node) -> Element {
+    if root.children.is_empty() {
+        root.keys.pop().unwrap()
+    } else {
+        let mut next_node = root.children.pop().unwrap();
+        let successor_node = get_successor(&mut next_node);
+        root.children.push(next_node);
+        successor_node
+    }
+}
 impl Node {
     fn index(&self, id: u32) -> usize {
         let mut i: usize = 0;
