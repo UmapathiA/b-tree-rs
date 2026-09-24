@@ -207,6 +207,8 @@ fn in_order_traversal(root: &Node) {
             in_order_traversal(child_node);
             println!("{} - {}", v.id, v.name);
         });
+        let child_node = root.children.get(root.children.len() - 1).unwrap();
+        in_order_traversal(&child_node);
     }
 }
 
