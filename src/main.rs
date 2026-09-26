@@ -1,118 +1,42 @@
-const MAX_NODE_SIZE: usize = 24;
-const MAX_DATA_INPUT: u32 = 100;
-const NO_OF_SEARCHES: u32 = MAX_DATA_INPUT * 75 / 100;
+pub const MAX_NODE_SIZE: usize = 24;
+pub const MAX_DATA_INPUT: u32 = 100;
+pub const NO_OF_SEARCHES: u32 = MAX_DATA_INPUT * 75 / 100;
+pub mod components;
+pub mod utils;
+
 fn main() {
-    let mut root = Node::new();
-    let mut generated_ids: Vec<u32> = Vec::new();
+    let root = Node::new();
+    let (mut root, generated_ids) = generate_tree(root);
+    let mut generated_ids_clone = generated_ids.clone();
+    let _ = generated_ids_clone.split_off(20);
+    generated_ids_clone.sort();
+    generated_ids_clone.dedup();
+    // generated_ids_clone.shuffle(&mut rand::rng());
 
-    let mut logs: Vec<String> = Vec::new();
-
-    for _ in 1..MAX_DATA_INPUT {
-        let now = Instant::now();
-        let r = random_range(1..300);
-        generated_ids.push(r);
-        let r_element = Element {
-            id: r,
-            name: Name().fake(),
-        };
-        (root, _) = insert(root, r_element);
-        logs.push(format!("{},{}", r, now.elapsed().as_nanos()));
-    }
-
-    let id_to_be_deleted = generated_ids
-        .get(random_range(0..MAX_DATA_INPUT) as usize)
-        .unwrap()
-        .clone();
     in_order_traversal(&root);
-    delete_node(&mut root, id_to_be_deleted);
-
-    println!("After deleting id : {}", id_to_be_deleted);
+    println!("Deleting ids {:?}", generated_ids_clone);
+    let id_to_be_deleted = delete_random_nodes(&mut root, &mut generated_ids_clone);
+    println!("After deleting id : {:?}", id_to_be_deleted);
     in_order_traversal(&root);
-
-    fs::write("logs.csv", logs.join("\n")).unwrap();
 
     let json_string = serde_json::to_string_pretty(&root).unwrap();
 
     fs::write("out.json", json_string).unwrap();
 
-    generated_ids.shuffle(&mut rand::rng());
-
-    println!("RANDOM");
-
-    let mut sorted_array = generated_ids.clone();
-
-    sorted_array.sort();
-
-    let mut logs: Vec<String> = Vec::new();
-
-    let now = Instant::now();
-    for _ in 1..NO_OF_SEARCHES {
-        let pick_random_generated_id = generated_ids.pop().unwrap();
-
-        let now = Instant::now();
-        // println!("Searching for {}....", pick_random_generated_id);
-        find(&root, pick_random_generated_id);
-        logs.push(format!(
-            "{},{}",
-            pick_random_generated_id,
-            now.elapsed().as_nanos()
-        ));
-    }
-
-    fs::write("search_logs.csv", logs.join("\n")).unwrap();
-    println!(
-        "{} records retrieved in {} ms",
-        NO_OF_SEARCHES,
-        now.elapsed().as_millis()
-    );
-
-    println!("SEQUENTIAL");
-    let now = Instant::now();
-    for _ in 1..NO_OF_SEARCHES {
-        let pick_random_generated_id = sorted_array.pop().unwrap();
-
-        // println!("Searching for {}....", pick_random_generated_id);
-        find(&root, pick_random_generated_id);
-    }
-
-    println!(
-        "{} records retrieved in {} ms",
-        NO_OF_SEARCHES,
-        now.elapsed().as_millis()
-    );
+    benchmark_utils(&root, generated_ids);
 }
 
-use std::{fs, time::Instant};
+use std::fs;
 
-use fake::{Fake, faker::name::en::Name};
-use rand::{random, random_range, seq::SliceRandom};
-use serde::{Deserialize, Serialize};
+use crate::{
+    components::Node,
+    utils::{benchmark_utils, delete_random_nodes, generate_tree},
+};
 
-#[derive(Debug, Serialize, Deserialize)]
-struct Node {
-    keys: Vec<Element>,
-    children: Vec<Node>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Element {
-    id: u32,
-    name: String,
-}
-
-impl Node {
-    fn new() -> Self {
-        Node {
-            keys: Vec::new(),
-            children: Vec::new(),
-        }
-    }
-}
-
-fn find(root: &Node, id: u32) {
+pub fn find(root: &Node, id: u32) {
     if let Some(n) = root.keys.iter().find(|k| k.id == id) {
         // println!("Results: ");
-        // println!("{}: {}", id, n.name)
+        println!("{}: {}", id, n.name)
     } else {
         if !root.children.is_empty() {
             if let Some(n) = root.children.get(root.index(id)) {
@@ -121,14 +45,8 @@ fn find(root: &Node, id: u32) {
         }
     }
 }
-
-impl PartialEq for Element {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-    }
-}
-
-fn insert(mut root: Node, mut v: Element) -> (Node, bool) {
+use components::Element;
+pub fn insert(mut root: Node, mut v: Element) -> (Node, bool) {
     let i = root.index(v.id);
     let mut split_again = false;
     if root.children.is_empty() {
@@ -212,7 +130,7 @@ fn in_order_traversal(root: &Node) {
     }
 }
 
-fn delete_node(mut root: &mut Node, id: u32) {
+pub fn delete_node(root: &mut Node, id: u32) {
     if root.keys.iter().find(|v| v.id == id).is_some() {
         let index = root
             .keys
@@ -224,19 +142,18 @@ fn delete_node(mut root: &mut Node, id: u32) {
 
         let _ = root.keys.remove(index);
         //delete child node
-
         if !root.children.is_empty() {
-            let successor = get_successor(&mut root);
+            let mut left_sub_tree = root.children.remove(index);
+            let successor = get_successor(&mut left_sub_tree);
+            root.children.insert(index, left_sub_tree);
             root.keys.insert(index, successor);
         }
     } else {
-        let index = root
-            .keys
-            .iter()
-            .enumerate()
-            .find(|(_, v)| v.id > id)
-            .unwrap()
-            .0;
+        let index = if let Some(idx) = root.keys.iter().enumerate().find(|(_, v)| v.id > id) {
+            idx.0
+        } else {
+            root.keys.len()
+        };
         let mut n = root.children.remove(index);
         delete_node(&mut n, id);
         root.children.insert(index, n);
@@ -248,21 +165,20 @@ fn get_successor(root: &mut Node) -> Element {
         root.keys.pop().unwrap()
     } else {
         let mut next_node = root.children.pop().unwrap();
-        let successor_node = get_successor(&mut next_node);
-        root.children.push(next_node);
-        successor_node
-    }
-}
-impl Node {
-    fn index(&self, id: u32) -> usize {
-        let mut i: usize = 0;
-        let mut ir = self.keys.iter();
-
-        while let Some(x) = ir.next()
-            && x.id < id
-        {
-            i += 1;
+        if next_node.keys.len() < MAX_NODE_SIZE / 2 {
+            println!("Rebalancing");
+            let mut next_last_node = root.children.pop().unwrap();
+            let borrowed_child = next_last_node.keys.pop().unwrap();
+            next_node.keys.push(root.keys.pop().unwrap());
+            root.keys.push(borrowed_child);
+            root.children.push(next_last_node);
         }
-        i
+
+        println!("Key len {}", next_node.keys.len());
+        let successor_node = get_successor(&mut next_node);
+        if !next_node.keys.is_empty() {
+            root.children.push(next_node);
+        }
+        successor_node
     }
 }
