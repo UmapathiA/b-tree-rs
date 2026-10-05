@@ -18,15 +18,14 @@ fn init() {
     });
 }
 #[cfg(test)]
-mod test {
+mod insert {
 
-    use log::{debug, info};
-    use simple_logger::SimpleLogger;
+    use log::debug;
 
     use crate::{
         components::{Element, Node},
-        delete_node, insert,
-        tests::{build_tree, init},
+        insert,
+        tests::init,
     };
 
     #[test]
@@ -96,6 +95,17 @@ mod test {
         assert_eq!(right.keys.get(0).unwrap().id, 22);
         assert_eq!(right.keys.get(1).unwrap().id, 23);
     }
+}
+
+#[cfg(test)]
+mod delete {
+    use log::info;
+
+    use crate::{
+        components::Element,
+        delete_node, insert,
+        tests::{build_tree, init},
+    };
 
     #[test]
     fn delete_node_from_leaf_without_rebalancing() {
@@ -206,7 +216,7 @@ mod test {
     }
 
     #[test]
-    fn delete_node_and_and_merge_with_right_node() {
+    fn delete_node_and_merge_with_right_node() {
         init();
         let mut root = build_tree();
         //                     |21|30|
@@ -241,7 +251,7 @@ mod test {
     }
 
     #[test]
-    fn delete_node_and_and_merge_with_left_node() {
+    fn delete_node_and_merge_with_left_node() {
         init();
         let mut root = build_tree();
         //                     |21|30|
