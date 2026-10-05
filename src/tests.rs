@@ -25,7 +25,7 @@ mod test {
 
     use crate::{
         components::{Element, Node},
-        delete_node, get_successor, insert,
+        delete_node, insert,
         tests::{build_tree, init},
     };
 
@@ -265,20 +265,19 @@ mod test {
             yaml_serde::to_string(&root).unwrap()
         );
 
-        //                     |30|
+        //                     |21|40|
         //
-        //     (|10|11|21|22|) (|40|50|60| |)
+        //     (|10|11| | |) (|22|30| |) (|50|60| | |)
 
         info!("{}", yaml_serde::to_string(&root).unwrap());
-        assert_eq!(root.keys.get(0).unwrap().id, 30);
+        assert_eq!(root.keys.get(0).unwrap().id, 21);
 
         assert_eq!(root.children.get(0).unwrap().keys.get(0).unwrap().id, 10);
         assert_eq!(root.children.get(0).unwrap().keys.get(1).unwrap().id, 11);
-        assert_eq!(root.children.get(0).unwrap().keys.get(2).unwrap().id, 21);
-        assert_eq!(root.children.get(0).unwrap().keys.get(3).unwrap().id, 22);
-        assert_eq!(root.children.get(1).unwrap().keys.get(0).unwrap().id, 40);
-        assert_eq!(root.children.get(1).unwrap().keys.get(1).unwrap().id, 50);
-        assert_eq!(root.children.get(1).unwrap().keys.get(2).unwrap().id, 60);
+        assert_eq!(root.children.get(2).unwrap().keys.get(0).unwrap().id, 50);
+        assert_eq!(root.children.get(2).unwrap().keys.get(1).unwrap().id, 60);
+        assert_eq!(root.children.get(1).unwrap().keys.get(0).unwrap().id, 22);
+        assert_eq!(root.children.get(1).unwrap().keys.get(1).unwrap().id, 30);
     }
 }
 

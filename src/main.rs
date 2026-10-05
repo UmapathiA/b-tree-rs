@@ -174,17 +174,15 @@ pub fn delete_node(root: &mut Node, id: u32) -> bool {
         let deleted = delete_node(&mut node_with_deleted_key, id);
 
         if deleted && node_with_deleted_key.keys.len() < MAX_NODE_SIZE / 2 {
-            if index > 0
-                && let Some(r_n) = root.children.get(index)
-                && r_n.keys.len() < MAX_NODE_SIZE / 2
-            {
+            let (dir, operation) = find_dir_and_operation(&root, index);
+            if dir == 'l' {
                 info!("Rebalancing with left node");
                 info!("{}", yaml_serde::to_string(&root).unwrap());
                 let mut left_child = root.children.remove(index - 1);
                 node_with_deleted_key
                     .keys
                     .insert(0, root.keys.remove(index - 1));
-                if left_child.keys.len() > MAX_NODE_SIZE / 2 {
+                if operation == 's' {
                     root.keys.insert(index - 1, left_child.keys.pop().unwrap());
                     root.children.insert(index - 1, left_child);
                 } else {
@@ -198,7 +196,7 @@ pub fn delete_node(root: &mut Node, id: u32) -> bool {
                 if root.children.len() > index {
                     let mut right_child = root.children.remove(index); //Since we already removed
                     node_with_deleted_key.keys.push(root.keys.remove(index));
-                    if right_child.keys.len() > MAX_NODE_SIZE / 2 {
+                    if operation == 's' {
                         //a node to delete key, its right sibling will take that index
                         root.keys.insert(index, right_child.keys.remove(0));
                         root.children.insert(index, right_child);
@@ -217,9 +215,10 @@ pub fn delete_node(root: &mut Node, id: u32) -> bool {
         deleted
     }
 }
-
 fn find_dir_and_operation(root: &Node, index: usize) -> (char, char) {
-    if let Some(ln) = root.children.get(index - 1) {
+    if index > 0
+        && let Some(ln) = root.children.get(index - 1)
+    {
         if ln.keys.len() > MAX_NODE_SIZE / 2 {
             ('l', 's')
         } else if let Some(rn) = root.children.get(index) {
