@@ -20,12 +20,12 @@ fn init() {
 #[cfg(test)]
 mod insert {
 
-    use log::debug;
+    use log::{debug, info};
 
     use crate::{
         components::{Element, Node},
-        insert,
-        tests::init,
+        delete_node, insert,
+        tests::{build_tree, init},
     };
 
     #[test]
@@ -94,6 +94,83 @@ mod insert {
         assert_eq!(left.keys.get(1).unwrap().id, 20);
         assert_eq!(right.keys.get(0).unwrap().id, 22);
         assert_eq!(right.keys.get(1).unwrap().id, 23);
+    }
+    #[test]
+    fn node_split_propagates_to_root() {
+        init();
+        let mut root = build_tree();
+        //                     |21|30|
+        //
+        //     (|10|11|20| | |)  (|22|23| | |) (|40|50| | |)
+        root = insert(root, Element::new(60)).0;
+        // root = insert(root, Element::new(13)).0;
+
+        //                     |21|30|
+        //
+        //     (|10|11|20|)  (|22|23| | |) (|40|50|60| |)
+        delete_node(&mut root, 20);
+        root = insert(root, Element::new(5)).0;
+        root = insert(root, Element::new(7)).0;
+        root = insert(root, Element::new(26)).0;
+        root = insert(root, Element::new(28)).0;
+        root = insert(root, Element::new(80)).0;
+
+        //                     |21|30|
+        //
+        //     (|5|7|10|11|)  (|22|23|26|28|) (|40|50|60|80|)
+
+        root = insert(root, Element::new(6)).0;
+
+        //                     |7|21|30|
+        //
+        //     (|5|6| | |) (|10|11| | )  (|22|23|26|28|) (|40|50|60|80|)
+
+        root = insert(root, Element::new(24)).0;
+
+        //                     |7|21|24|30|
+        //
+        //     (|5|6| | |) (|10|11| | )  (|22|23| | |) (|26|28| | |) (|40|50|60|80|)
+        root = insert(root, Element::new(51)).0;
+
+        //                               |24|
+        //
+        //                     (|7|21| | |) (|30|51| | |)
+        //
+        //     (|5|6| | |) (|10|11| | )  (|22|23| | |) (|26|28| | |) (|40|50| | |) (|60|80| | |)
+
+        info!(
+            "After deleting 23 {}",
+            yaml_serde::to_string(&root).unwrap()
+        );
+
+        info!("{}", yaml_serde::to_string(&root).unwrap());
+        assert_eq!(root.keys.get(0).unwrap().id, 24);
+
+        let c0 = root.children.get(0).unwrap();
+        let c1 = root.children.get(1).unwrap();
+
+        let c00 = c0.children.get(0).unwrap();
+        let c10 = c1.children.get(0).unwrap();
+        let c01 = c0.children.get(1).unwrap();
+        let c11 = c1.children.get(1).unwrap();
+        let c02 = c0.children.get(2).unwrap();
+        let c12 = c1.children.get(2).unwrap();
+        assert_eq!(c0.keys.get(0).unwrap().id, 7);
+        assert_eq!(c0.keys.get(1).unwrap().id, 21);
+        assert_eq!(c1.keys.get(0).unwrap().id, 30);
+        assert_eq!(c1.keys.get(1).unwrap().id, 51);
+        assert_eq!(c00.keys.get(0).unwrap().id, 5);
+        assert_eq!(c00.keys.get(1).unwrap().id, 6);
+        assert_eq!(c01.keys.get(0).unwrap().id, 10);
+        assert_eq!(c01.keys.get(1).unwrap().id, 11);
+        assert_eq!(c02.keys.get(0).unwrap().id, 22);
+        assert_eq!(c02.keys.get(1).unwrap().id, 23);
+        assert_eq!(c10.keys.get(0).unwrap().id, 26);
+        assert_eq!(c10.keys.get(1).unwrap().id, 28);
+        assert_eq!(c11.keys.get(0).unwrap().id, 40);
+        assert_eq!(c11.keys.get(1).unwrap().id, 50);
+        assert_eq!(c12.keys.get(0).unwrap().id, 60);
+        assert_eq!(c12.keys.get(1).unwrap().id, 80);
     }
 }
 
@@ -251,7 +328,7 @@ mod delete {
     }
 
     #[test]
-    fn delete_node_and_merge_with_left_node() {
+    fn delete_node_and_shuffle_wih_right_node() {
         init();
         let mut root = build_tree();
         //                     |21|30|
