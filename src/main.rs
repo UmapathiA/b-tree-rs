@@ -1,22 +1,24 @@
-pub const MAX_NODE_SIZE: usize = 24;
+pub const MAX_NODE_SIZE: usize = 4;
 pub const MAX_DATA_INPUT: u32 = 100;
 pub const NO_OF_SEARCHES: u32 = MAX_DATA_INPUT * 75 / 100;
 pub mod components;
+pub mod tests;
 pub mod utils;
 
 fn main() {
+    SimpleLogger::new().init().unwrap();
     let root = Node::new();
     let (mut root, generated_ids) = generate_tree(root);
     let mut generated_ids_clone = generated_ids.clone();
-    let _ = generated_ids_clone.split_off(20);
+    let _ = generated_ids_clone.split_off(80);
     generated_ids_clone.sort();
     generated_ids_clone.dedup();
     // generated_ids_clone.shuffle(&mut rand::rng());
 
     in_order_traversal(&root);
-    println!("Deleting ids {:?}", generated_ids_clone);
+    info!("Deleting ids {:?}", generated_ids_clone);
     let id_to_be_deleted = delete_random_nodes(&mut root, &mut generated_ids_clone);
-    println!("After deleting id : {:?}", id_to_be_deleted);
+    info!("After deleting id : {:?}", id_to_be_deleted);
     in_order_traversal(&root);
 
     let json_string = serde_json::to_string_pretty(&root).unwrap();
@@ -35,8 +37,8 @@ use crate::{
 
 pub fn find(root: &Node, id: u32) {
     if let Some(n) = root.keys.iter().find(|k| k.id == id) {
-        // println!("Results: ");
-        println!("{}: {}", id, n.name)
+        // info!("Results: ");
+        info!("{}: {}", id, n.name)
     } else {
         if !root.children.is_empty() {
             if let Some(n) = root.children.get(root.index(id)) {
@@ -46,12 +48,14 @@ pub fn find(root: &Node, id: u32) {
     }
 }
 use components::Element;
+use log::{debug, info};
+use simple_logger::SimpleLogger;
 pub fn insert(mut root: Node, mut v: Element) -> (Node, bool) {
     let i = root.index(v.id);
     let mut split_again = false;
     if root.children.is_empty() {
         //When child overflows, split. We reached the tail of the
-        //recxursion
+        //recursion
         if root.keys.contains(&v) {
             let _ = root
                 .keys
@@ -118,20 +122,21 @@ fn in_order_traversal(root: &Node) {
     if root.children.is_empty() {
         root.keys
             .iter()
-            .for_each(|x| println!("{} - {}", x.id, x.name));
+            .for_each(|x| info!("{} - {}", x.id, x.name));
     } else {
         root.keys.iter().enumerate().for_each(|(i, v)| {
             let child_node = root.children.get(i).unwrap();
             in_order_traversal(child_node);
-            println!("{} - {}", v.id, v.name);
+            info!("{} - {}", v.id, v.name);
         });
         let child_node = root.children.get(root.children.len() - 1).unwrap();
         in_order_traversal(&child_node);
     }
 }
 
-pub fn delete_node(root: &mut Node, id: u32) {
+pub fn delete_node(root: &mut Node, id: u32) -> bool {
     if root.keys.iter().find(|v| v.id == id).is_some() {
+        //Found the key that we are searching
         let index = root
             .keys
             .iter()
@@ -140,41 +145,120 @@ pub fn delete_node(root: &mut Node, id: u32) {
             .unwrap()
             .0;
 
-        let _ = root.keys.remove(index);
         //delete child node
+        let _ = root.keys.remove(index); //If this is the child node, this is where it ends.
         if !root.children.is_empty() {
+            //If it is not a child node, we need to replace the element
+            //with the in order successor
             let mut left_sub_tree = root.children.remove(index);
-            let successor = get_successor(&mut left_sub_tree);
-            root.children.insert(index, left_sub_tree);
-            root.keys.insert(index, successor);
+            if !left_sub_tree.keys.is_empty() {
+                //Somehow we endup with empty key and empty
+                //childnren nodes. For now we are just not inserting such nodes back. This may
+                //never occur if we properly build node rebalancing cases
+                debug!("Popped children to find next successor {:?}", left_sub_tree);
+                let successor = get_successor(&mut left_sub_tree);
+                root.children.insert(index, left_sub_tree);
+                root.keys.insert(index, successor);
+            }
         }
+        true
     } else {
+        //NOTE: Handles rebalanicng only at leaf nodes
+        let mut merged_with_left = false;
         let index = if let Some(idx) = root.keys.iter().enumerate().find(|(_, v)| v.id > id) {
             idx.0
         } else {
             root.keys.len()
         };
-        let mut n = root.children.remove(index);
-        delete_node(&mut n, id);
-        root.children.insert(index, n);
+        let mut node_with_deleted_key = root.children.remove(index);
+        let deleted = delete_node(&mut node_with_deleted_key, id);
+
+        if deleted && node_with_deleted_key.keys.len() < MAX_NODE_SIZE / 2 {
+            if index > 0
+                && let Some(r_n) = root.children.get(index)
+                && r_n.keys.len() < MAX_NODE_SIZE / 2
+            {
+                info!("Rebalancing with left node");
+                info!("{}", yaml_serde::to_string(&root).unwrap());
+                let mut left_child = root.children.remove(index - 1);
+                node_with_deleted_key
+                    .keys
+                    .insert(0, root.keys.remove(index - 1));
+                if left_child.keys.len() > MAX_NODE_SIZE / 2 {
+                    root.keys.insert(index - 1, left_child.keys.pop().unwrap());
+                    root.children.insert(index - 1, left_child);
+                } else {
+                    for (i, k) in left_child.keys.into_iter().enumerate() {
+                        node_with_deleted_key.keys.insert(i, k);
+                    }
+
+                    merged_with_left = true;
+                }
+            } else {
+                if root.children.len() > index {
+                    let mut right_child = root.children.remove(index); //Since we already removed
+                    node_with_deleted_key.keys.push(root.keys.remove(index));
+                    if right_child.keys.len() > MAX_NODE_SIZE / 2 {
+                        //a node to delete key, its right sibling will take that index
+                        root.keys.insert(index, right_child.keys.remove(0));
+                        root.children.insert(index, right_child);
+                    } else {
+                        //Merge with right child
+                        node_with_deleted_key.keys.append(&mut right_child.keys);
+                    }
+                }
+            }
+        }
+        if merged_with_left {
+            root.children.insert(index - 1, node_with_deleted_key);
+        } else {
+            root.children.insert(index, node_with_deleted_key);
+        }
+        deleted
+    }
+}
+
+fn find_dir_and_operation(root: &Node, index: usize) -> (char, char) {
+    if let Some(ln) = root.children.get(index - 1) {
+        if ln.keys.len() > MAX_NODE_SIZE / 2 {
+            ('l', 's')
+        } else if let Some(rn) = root.children.get(index) {
+            if rn.keys.len() > MAX_NODE_SIZE / 2 {
+                ('r', 's')
+            } else {
+                ('l', 'm')
+            }
+        } else {
+            ('l', 'm')
+        }
+    } else {
+        let rn = root.children.get(index).unwrap();
+
+        if rn.keys.len() > MAX_NODE_SIZE / 2 {
+            ('r', 's')
+        } else {
+            ('r', 'm')
+        }
     }
 }
 
 fn get_successor(root: &mut Node) -> Element {
+    debug!("Node Keys {:?}", root.keys);
     if root.children.is_empty() {
         root.keys.pop().unwrap()
     } else {
         let mut next_node = root.children.pop().unwrap();
         if next_node.keys.len() < MAX_NODE_SIZE / 2 {
-            println!("Rebalancing");
+            info!("Rebalancing");
             let mut next_last_node = root.children.pop().unwrap();
+            debug!("Next last node {:?}", next_last_node.keys);
             let borrowed_child = next_last_node.keys.pop().unwrap();
             next_node.keys.push(root.keys.pop().unwrap());
             root.keys.push(borrowed_child);
             root.children.push(next_last_node);
         }
 
-        println!("Key len {}", next_node.keys.len());
+        info!("Key len {}", next_node.keys.len());
         let successor_node = get_successor(&mut next_node);
         if !next_node.keys.is_empty() {
             root.children.push(next_node);

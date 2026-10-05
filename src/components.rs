@@ -1,3 +1,4 @@
+use fake::{Fake, faker::name::en::Name};
 use serde::{Deserialize, Serialize};
 
 impl Node {
@@ -23,6 +24,7 @@ pub struct Node {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Element {
     pub id: u32,
+    #[serde(skip)]
     pub name: String,
 }
 
@@ -38,5 +40,14 @@ impl Node {
 impl PartialEq for Element {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
+    }
+}
+
+impl Element {
+    pub fn new(id: u32) -> Self {
+        Element {
+            id,
+            name: Name().fake(),
+        }
     }
 }
